@@ -1,15 +1,33 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import './index.css';
-import App from './App';
+import React, { useState, useEffect } from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import Login from "./components/Login";
+import "./index.css";
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+function Root() {
+  const [user, setUser] = useState(null);
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
+  useEffect(() => {
+    const savedUser = localStorage.getItem("coloc_user");
+    if (savedUser) setUser(savedUser);
+  }, []);
+
+  const handleLogin = (name) => setUser(name);
+  const handleLogout = () => {
+    localStorage.removeItem("coloc_user");
+    setUser(null);
+  };
+
+  return (
+    <>
+      {!user ? (
+        <Login onLogin={handleLogin} />
+      ) : (
+        <App currentUser={user} onLogout={handleLogout} />
+      )}
+    </>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<Root />);
