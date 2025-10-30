@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { roommates, weeklyTasks } from "../data/tasks";
+import { roommates } from "../data/tasks";
 
 // Fonction pour déterminer la semaine actuelle
 function getWeekNumber() {
