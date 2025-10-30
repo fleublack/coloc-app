@@ -1,3 +1,4 @@
+import TaskTracker from "./components/TaskTracker";
 import { motion, AnimatePresence } from "framer-motion";
 import React, { useState } from "react";
 import TaskBoard from "./components/TaskBoard";
@@ -31,6 +32,7 @@ export default function App() {
         <Alert name={assignedRoommate} task={mainTask} />
         <TaskBoard />
         <Rules />
+        <TaskTracker />
 
         {/* --- BOUTON AFFICHER/MASQUER HISTORIQUE --- */}
 <div className="text-center mt-6">
