@@ -19,7 +19,7 @@ const initialProgress = {
 
 export default function TaskTracker({ currentUser }) {
   const [progress, setProgress] = useState(initialProgress);
-  const [currentWeek, setCurrentWeek] = useState(getWeekNumber());
+  const [currentWeek] = useState(getWeekNumber());
   const [history, setHistory] = useState([]);
 
   // 🔄 Le colocataire actif de la semaine
