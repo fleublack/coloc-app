@@ -1,16 +1,17 @@
 // 🧩 Toujours mettre les imports en premier
 import React, { useState, useEffect } from "react";
 import { roommates } from "../data/tasks";
-import { sendWeeklyEmails } from "../utils/sendEmails"; // ✅ ajouté ici
+import { sendWeeklyEmails } from "../utils/sendEmails";
+import { getWeekNumber } from "../utils/assignments";
 
-// 🧮 Ensuite les fonctions utilitaires
-function getWeekNumber() {
-  const now = new Date();
-  const firstDayOfYear = new Date(now.getFullYear(), 0, 1);
-  const pastDaysOfYear = (now - firstDayOfYear) / 86400000;
-  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+// 🔤 Fonction pour comparer sans accent ni majuscules
+function normalizeName(name) {
+  return name
+    ? name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    : "";
 }
 
+// 🔹 Progression initiale
 const initialProgress = {
   Fleury: 0,
   Fortuné: 0,
@@ -22,41 +23,36 @@ export default function TaskTracker({ currentUser }) {
   const [currentWeek] = useState(getWeekNumber());
   const [history, setHistory] = useState([]);
 
-  // 🔄 Le colocataire actif de la semaine
-  const activeRoommate = roommates[currentWeek % roommates.length];
-
-  // Chargement initial
+  // 🔁 Chargement initial
   useEffect(() => {
-  const saved = JSON.parse(localStorage.getItem("coloc_data")) || {};
-  const savedWeek = saved.week || currentWeek;
-  const savedProgress = saved.progress || initialProgress;
-  const savedHistory = saved.history || [];
+    const saved = JSON.parse(localStorage.getItem("coloc_data")) || {};
+    const savedWeek = saved.week || currentWeek;
+    const savedProgress = saved.progress || initialProgress;
+    const savedHistory = saved.history || [];
 
-  setProgress(savedProgress);
-  setHistory(savedHistory);
+    setProgress(savedProgress);
+    setHistory(savedHistory);
 
-  // 👉 Si on change de semaine, on réinitialise et envoie les mails
-  if (savedWeek !== currentWeek) {
-    const resetProgress = { Fleury: 0, Fortuné: 0, Joel: 0 };
-    setProgress(resetProgress);
-    setHistory([...savedHistory, { week: savedWeek, progress: savedProgress }]);
+    // 🧹 Si on change de semaine → reset et envoi des mails
+    if (savedWeek !== currentWeek) {
+      const resetProgress = { Fleury: 0, Fortuné: 0, Joel: 0 };
+      setProgress(resetProgress);
+      setHistory([...savedHistory, { week: savedWeek, progress: savedProgress }]);
 
-    // 🔥 Envoi des mails via EmailJS
-    sendWeeklyEmails();
+      sendWeeklyEmails();
 
-    localStorage.setItem(
-      "coloc_data",
-      JSON.stringify({
-        week: currentWeek,
-        progress: resetProgress,
-        history: [...savedHistory, { week: savedWeek, progress: savedProgress }],
-      })
-    );
-  }
-}, [currentWeek]);
+      localStorage.setItem(
+        "coloc_data",
+        JSON.stringify({
+          week: currentWeek,
+          progress: resetProgress,
+          history: [...savedHistory, { week: savedWeek, progress: savedProgress }],
+        })
+      );
+    }
+  }, [currentWeek]);
 
-
-  // Sauvegarde à chaque mise à jour
+  // 💾 Sauvegarde automatique
   useEffect(() => {
     localStorage.setItem(
       "coloc_data",
@@ -68,15 +64,52 @@ export default function TaskTracker({ currentUser }) {
     );
   }, [progress, history, currentWeek]);
 
-  // Quand le colocataire responsable fait sa tâche
+  // 🔁 Chaque lundi, on réinitialise les blocages journaliers
+  useEffect(() => {
+    const now = new Date();
+    if (now.getDay() === 1) {
+      roommates.forEach((r) => localStorage.removeItem(`lastDone_${r}`));
+    }
+  }, []);
+
+  // ✅ Quand un colocataire clique sur “Fait ✅”
   const handleTaskDone = (name) => {
-    if (name !== activeRoommate || name !== currentUser) return; // 🔒 Empêche si ce n’est pas son tour OU pas le bon utilisateur
-    setProgress((prev) => ({
-      ...prev,
-      [name]: Math.min(prev[name] + 1, 7),
-    }));
+    const today = new Date().toDateString(); // ex: "Fri Nov 01 2025"
+
+    // 🔒 Vérifie si le coloc a déjà cliqué aujourd’hui
+    const lastDone = localStorage.getItem(`lastDone_${name}`);
+    if (lastDone === today) {
+      alert("Tu as déjà validé ta tâche aujourd’hui ✅ Reviens demain !");
+      return;
+    }
+
+    // ✅ Incrémente le compteur uniquement pour le coloc connecté
+    if (normalizeName(name) === normalizeName(currentUser)) {
+      setProgress((prev) => {
+        const newProgress = {
+          ...prev,
+          [name]: Math.min(prev[name] + 1, 7),
+        };
+
+        // 🕐 Sauvegarde la date du jour pour bloquer jusqu’à demain
+        localStorage.setItem(`lastDone_${name}`, today);
+
+        // 💾 Enregistre aussi la progression mise à jour
+        localStorage.setItem(
+          "coloc_data",
+          JSON.stringify({
+            week: currentWeek,
+            progress: newProgress,
+            history,
+          })
+        );
+
+        return newProgress;
+      });
+    }
   };
 
+  // 🖥️ Affichage
   return (
     <div className="bg-white rounded-xl shadow p-6 mt-6">
       <h2 className="text-xl font-bold mb-2 text-green-700">
@@ -84,8 +117,7 @@ export default function TaskTracker({ currentUser }) {
       </h2>
 
       <p className="mb-4 text-gray-600">
-        🔐 <strong>{activeRoommate}</strong> est responsable cette semaine (semaine{" "}
-        {currentWeek})
+        🗓️ Semaine actuelle : <strong>{currentWeek}</strong>
       </p>
 
       <table className="w-full text-left mb-6">
@@ -101,23 +133,27 @@ export default function TaskTracker({ currentUser }) {
             <tr key={name} className="border-b">
               <td className="py-2 font-semibold">{name}</td>
               <td>
-                {progress[name]} / 7 {progress[name] === 7 && "🎉"}
+                {progress[name]} / 7{" "}
+                {progress[name] === 7 && <span className="text-green-600">🎉</span>}
               </td>
               <td>
                 <button
                   onClick={() => handleTaskDone(name)}
-                  disabled={name !== activeRoommate || progress[name] === 7}
+                  disabled={
+                    normalizeName(name) !== normalizeName(currentUser) ||
+                    progress[name] === 7
+                  }
                   className={`px-3 py-1 rounded-lg text-white ${
                     progress[name] === 7
                       ? "bg-gray-400"
-                      : name === activeRoommate
+                      : normalizeName(name) === normalizeName(currentUser)
                       ? "bg-green-600 hover:bg-green-700"
                       : "bg-gray-400 cursor-not-allowed"
                   }`}
                 >
                   {progress[name] === 7
                     ? "Terminé"
-                    : name === activeRoommate
+                    : normalizeName(name) === normalizeName(currentUser)
                     ? "Fait ✅"
                     : "Verrouillé 🔒"}
                 </button>
@@ -127,13 +163,13 @@ export default function TaskTracker({ currentUser }) {
         </tbody>
       </table>
 
-      {/* Historique des deux dernières semaines */}
+      {/* 🕒 Historique des 2 dernières semaines */}
       {history.length > 0 && (
         <div className="mt-6">
           <h3 className="text-lg font-semibold text-blue-700 mb-3">
             📜 Historique des 2 dernières semaines
           </h3>
-          {history.map((weekData) => (
+          {history.slice(-2).map((weekData) => (
             <div
               key={weekData.week}
               className="border rounded-lg p-3 mb-2 bg-gray-50 shadow-sm"

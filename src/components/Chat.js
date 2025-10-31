@@ -1,106 +1,110 @@
-// src/components/Chat.js
-import React, { useEffect, useState } from "react";
-import { db } from "../firebase/firebaseConfig";
-import {
-  collection,
-  addDoc,
-  onSnapshot,
-  query,
-  orderBy,
-  serverTimestamp,
-} from "firebase/firestore";
-import emailjs from "emailjs-com";
+import React, { useState, useEffect } from "react";
 
-const Chat = ({ currentUser }) => {
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState("");
+const CATEGORIES = [
+  { id: "incident", label: "🚨 Déclarer un incident" },
+  { id: "information", label: "📢 Donner une information" },
+  { id: "idee", label: "💡 Proposer une idée" },
+  { id: "rappel", label: "📜 Faire un rappel de règle" },
+];
 
-  const userEmailMap = {
-    Fleury: "fleumobs@gmail.com",
-    Fortuné: "fortunemobima47@gmail.com",
-    Joel: "fleublackm@gmail.com",
+export default function Chat({ currentUser }) {
+  const [messages, setMessages] = useState(() => {
+    return JSON.parse(localStorage.getItem("structured_chat")) || [];
+  });
+  const [category, setCategory] = useState(CATEGORIES[0].id);
+  const [text, setText] = useState("");
+
+  // Sauvegarde automatique dans localStorage
+  useEffect(() => {
+    localStorage.setItem("structured_chat", JSON.stringify(messages));
+  }, [messages]);
+
+  const handleSend = () => {
+    if (text.trim() === "") return alert("💬 Écris un message avant d’envoyer !");
+    const newMsg = {
+      id: Date.now(),
+      user: currentUser,
+      category,
+      text,
+      timestamp: new Date().toLocaleString(),
+    };
+    setMessages([...messages, newMsg]);
+    setText("");
   };
 
-  // 📡 Charger les messages en temps réel
-  useEffect(() => {
-    const q = query(collection(db, "messages"), orderBy("timestamp", "asc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setMessages(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-    });
-    return unsubscribe;
-  }, []);
-
-  // 📤 Envoyer un message
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (newMessage.trim() === "") return;
-
-    await addDoc(collection(db, "messages"), {
-      text: newMessage,
-      sender: currentUser,
-      timestamp: serverTimestamp(),
-    });
-
-    // ✉️ Notification EmailJS aux autres colocataires
-    const recipients = Object.values(userEmailMap).filter(
-      (mail) => mail !== userEmailMap[currentUser]
-    );
-
-    recipients.forEach((email) => {
-      emailjs.send(
-        "service_0nuoi1h", // ✅ ton service ID
-        "template_4zkucni", // ✅ ton template ID
-        {
-          name: currentUser,
-          to_name: email.split("@")[0],
-          message: newMessage,
-          email: email,
-          site_url: window.location.origin,
-        },
-        "7jpXvKcBUMhTDBonN" // ✅ ta clé publique
-      );
-    });
-
-    setNewMessage("");
+  const getCategoryLabel = (id) => {
+    const cat = CATEGORIES.find((c) => c.id === id);
+    return cat ? cat.label : "Autre";
   };
 
   return (
-    <div className="bg-white rounded-xl shadow p-6 mt-6">
-      <h2 className="text-xl font-bold mb-4 text-green-700">💬 Chat entre colocataires</h2>
+    <div className="bg-white text-gray-800 rounded-xl shadow p-4">
+      <h2 className="text-lg font-bold text-green-700 mb-3">
+        💬 Communication entre colocataires
+      </h2>
 
-      <div className="h-64 overflow-y-auto border p-3 rounded-lg bg-gray-50 mb-4">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`mb-2 p-2 rounded-lg max-w-[75%] ${
-              msg.sender === currentUser
-                ? "bg-green-100 ml-auto text-right"
-                : "bg-gray-200"
-            }`}
-          >
-            <p className="text-sm text-gray-600 font-semibold">{msg.sender}</p>
-            <p>{msg.text}</p>
-          </div>
-        ))}
+      {/* Sélection de catégorie */}
+      <div className="mb-3">
+        <label className="block text-sm font-semibold mb-1">
+          Choisis un sujet :
+        </label>
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="w-full p-2 border rounded-lg bg-gray-50"
+        >
+          {CATEGORIES.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {cat.label}
+            </option>
+          ))}
+        </select>
       </div>
 
-      <form onSubmit={sendMessage} className="flex space-x-2">
-        <input
-          type="text"
-          placeholder="Écris ton message..."
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          className="flex-1 border rounded-lg px-3 py-2 focus:outline-none focus:ring focus:ring-green-200"
-        />
-        <button
-          type="submit"
-          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-        >
-          Envoyer 🚀
-        </button>
-      </form>
+      {/* Zone de message */}
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows="3"
+        placeholder="Écris ton message ici..."
+        className="w-full p-2 border rounded-lg mb-3 bg-gray-50"
+      ></textarea>
+
+      {/* Bouton d'envoi */}
+      <button
+        onClick={handleSend}
+        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+      >
+        Envoyer 🚀
+      </button>
+
+      {/* Historique des messages */}
+      <div className="mt-5 max-h-72 overflow-y-auto space-y-2">
+        {messages.length === 0 ? (
+          <p className="text-gray-500 text-sm italic">
+            Aucun message pour le moment...
+          </p>
+        ) : (
+          messages
+            .slice()
+            .reverse()
+            .map((msg) => (
+              <div
+                key={msg.id}
+                className="border rounded-lg p-2 bg-gray-100 shadow-sm"
+              >
+                <p className="text-sm text-gray-600 mb-1">
+                  <strong className="text-green-700">{msg.user}</strong> •{" "}
+                  <span className="text-xs text-gray-500">{msg.timestamp}</span>
+                </p>
+                <p className="text-xs font-semibold text-blue-700">
+                  {getCategoryLabel(msg.category)}
+                </p>
+                <p className="text-sm mt-1">{msg.text}</p>
+              </div>
+            ))
+        )}
+      </div>
     </div>
   );
-};
-
-export default Chat;
+}

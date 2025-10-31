@@ -1,37 +1,51 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
+import {
+  getWeeklyAssignments,
+  getTimeUntilNextMonday,
+  getWeekNumber,
+} from "../utils/assignments";
 
-export default function Alert({ name, task }) {
-  const [timeLeft, setTimeLeft] = useState("");
+// 🔤 Fonction pour supprimer les accents et normaliser les noms
+function normalizeName(name) {
+  return name
+    .normalize("NFD") // Décompose les caractères accentués
+    .replace(/[\u0300-\u036f]/g, "") // Supprime les accents
+    .toLowerCase(); // Met tout en minuscules
+}
 
-  useEffect(() => {
-    const updateCountdown = () => {
-      const now = new Date();
-      // Prochain dimanche à 23h59
-      const nextSunday = new Date(now);
-      nextSunday.setDate(now.getDate() + ((7 - now.getDay()) % 7));
-      nextSunday.setHours(23, 59, 59, 999);
+export default function Alert({ currentUser }) {
+  const weekNumber = getWeekNumber();
+  const assignments = getWeeklyAssignments();
+  const { days, hours, minutes } = getTimeUntilNextMonday();
 
-      const diff = nextSunday - now;
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-      const minutes = Math.floor((diff / (1000 * 60)) % 60);
+  // ✅ Recherche du colocataire sans tenir compte des accents / majuscules
+  const normalizedUser = normalizeName(currentUser);
+  const matchedKey = Object.keys(assignments).find(
+    (key) => normalizeName(key) === normalizedUser
+  );
 
-      setTimeLeft(`${days}j ${hours}h ${minutes}min`);
-    };
-
-    updateCountdown();
-    const timer = setInterval(updateCountdown, 60000); // met à jour chaque minute
-    return () => clearInterval(timer);
-  }, []);
+  const tasks = matchedKey ? assignments[matchedKey] : null;
 
   return (
-    <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 mb-4 rounded">
-      👋 Salut <b>{name}</b> ! Cette semaine, tu es responsable de <b>{task}</b>.
-      <br />
-      Pense à bien t’en occuper avant dimanche 🧽
-      <div className="mt-2 text-sm text-yellow-700">
-        ⏰ Prochaine rotation dans <b>{timeLeft}</b>
-      </div>
+    <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-lg shadow-md">
+      {tasks ? (
+        <>
+          <p className="font-semibold text-lg mb-1">
+            👋 Salut {currentUser} ! Cette semaine ({weekNumber}), tu es responsable de{" "}
+            <span className="text-yellow-700 font-bold">
+              {tasks.join(" & ")}
+            </span>.
+          </p>
+          <p className="text-sm">Pense à bien t’en occuper avant dimanche 🧽</p>
+        </>
+      ) : (
+        <p className="font-semibold text-lg mb-1">
+          👋 Salut {currentUser} ! Cette semaine ({weekNumber}), tu n’as aucune tâche attribuée 😎
+        </p>
+      )}
+      <p className="text-xs mt-2 text-gray-600">
+        ⏰ Prochaine rotation dans {days}j {hours}h {minutes}min.
+      </p>
     </div>
   );
 }

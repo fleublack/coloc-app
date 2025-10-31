@@ -1,3 +1,4 @@
+// data/tasks.js
 export const roommates = ["Fleury", "Fortuné", "Joel"];
 
 export const weeklyTasks = [
